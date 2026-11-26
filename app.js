@@ -3,7 +3,7 @@
    Hecho por Facundo Burgos · @facuuuburgos */
 'use strict';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const PLANILLA = 'https://docs.google.com/spreadsheets/d/1lTUp5c3YC7W_cGC-nuNI-y2ov4PR3kuiK0ygVX6-8Ac/edit';
 const INICIO_NORMAL = '2026-09'; // "lo normal" = promedio de los últimos 3 meses completos desde acá
 const INICIO_DATOS = '2026-06';
@@ -875,15 +875,31 @@ function vConexion() {
   $('#s-conexion').innerHTML = `
     <div class="subhead">${S.raw ? `<button class="back" data-go="mas" aria-label="Volver">${ic('left')}</button>` : ''}<h1>Conexión</h1></div>
     <div class="card">
-      <p class="small muted" style="margin-top:0">La app lee tus datos desde tu planilla de Google. Para conectarla, abrí el enlace de conexión que te pasé una sola vez, o pegá la dirección y la clave acá.</p>
+      <p class="small muted" style="margin-top:0">Copiá el enlace de conexión y tocá el botón. También podés pegarlo entero en el primer campo.</p>
+      <button class="btn p" id="btnPegar">Pegar enlace de conexión</button>
+      <p class="xs muted" style="margin:14px 0 0">O completá a mano:</p>
       <label class="field">Dirección de la planilla (termina en /exec)<input class="input" id="inU" value="${con && !con.demo ? esc(con.u) : ''}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
       <label class="field">Clave<input class="input" id="inK" value="${con && !con.demo ? esc(con.k) : ''}" autocomplete="off"></label>
-      <button class="btn p" style="margin-top:16px" id="btnCon">Conectar</button>
+      <button class="btn s" style="margin-top:16px" id="btnCon">Conectar</button>
       ${S.raw ? `<button class="btn s" style="margin-top:10px" id="btnAct">${ic('refresh').replace('<svg', '<svg style="width:16px;height:16px;vertical-align:-3px;margin-right:6px"')}Actualizar ahora</button>` : ''}
       <p class="small muted" id="conEstado" style="margin:12px 0 0">${S.at ? 'Última actualización: ' + haceCuanto(S.at) : ''}${S.error ? ' · ' + esc(S.error) : ''}</p>
     </div>
     <p class="xs muted" style="margin:0 4px">La clave se guarda solo en este dispositivo. Sin ella nadie puede leer tus datos.</p>`;
+  const desdeEnlace = (txt) => {
+    const i = (txt || '').indexOf('#'); if (i < 0) return null;
+    const p = new URLSearchParams(txt.slice(i + 1).trim());
+    return p.get('u') && p.get('k') ? { u: p.get('u'), k: p.get('k') } : null;
+  };
+  $('#btnPegar').addEventListener('click', async () => {
+    let txt = '';
+    try { txt = await navigator.clipboard.readText(); } catch (e) { $('#conEstado').textContent = 'No pude leer lo copiado. Pegá el enlace en el primer campo y tocá Conectar.'; return; }
+    const c = desdeEnlace(txt);
+    if (!c) { $('#conEstado').textContent = 'Lo copiado no es el enlace de conexión.'; return; }
+    LS.set('conexion', c); $('#conEstado').textContent = 'Conectando…'; cargar(true);
+  });
   $('#btnCon').addEventListener('click', () => {
+    const c = desdeEnlace($('#inU').value);
+    if (c) { LS.set('conexion', c); cargar(true); return; }
     const u = $('#inU').value.trim(), k = $('#inK').value.trim();
     if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u) || !k) { $('#conEstado').textContent = 'Revisá la dirección y la clave.'; return; }
     LS.set('conexion', { u, k }); cargar(true);
