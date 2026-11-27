@@ -3,7 +3,7 @@
    Hecho por Facundo Burgos · @facuuuburgos */
 'use strict';
 
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const PLANILLA = 'https://docs.google.com/spreadsheets/d/1lTUp5c3YC7W_cGC-nuNI-y2ov4PR3kuiK0ygVX6-8Ac/edit';
 const INICIO_NORMAL = '2026-09'; // "lo normal" = promedio de los últimos 3 meses completos desde acá
 const INICIO_DATOS = '2026-06';
@@ -153,6 +153,7 @@ const mesesDisponibles = () => [...new Set(S.rows.filter((r) => r.gasto !== 0 ||
 const deMes = (m) => S.rows.filter((r) => r.mes === m);
 const gastoDe = (rs) => sum(rs, (r) => r.gasto);
 const habitual = (r) => !r.puntual;
+const esCredito = (r) => /cr[ée]dito/i.test(r.banco);
 const esFijo = (r) => (r.frecuencia ? r.frecuencia === 'Fijo' : FIJAS.includes(r.cat));
 const claveFijo = (r) => (r.tipo === 'Transferencia' || FIJAS.includes(r.cat) ? r.cat : r.comercio);
 const ingresosDe = (m) => sum(S.ing.filter((r) => r.mes === m), (r) => r.valor);
@@ -446,6 +447,7 @@ function vMovimientos() {
   if (f === 'gastos') rs = rs.filter((r) => r.gasto > 0);
   if (f === 'ingresos') rs = rs.filter((r) => r.tipo === 'Ingreso');
   if (f === 'fijos') rs = rs.filter((r) => r.gasto > 0 && esFijo(r));
+  if (f === 'credito') rs = rs.filter((r) => esCredito(r) && r.gasto !== 0);
   if (q) rs = rs.filter((r) => (limpiar(r.comercio) + ' ' + catN(r.cat) + ' ' + r.comercio).toLowerCase().includes(q));
   rs.sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
   const meses = [...new Set(rs.map((r) => r.mes))];
@@ -453,13 +455,14 @@ function vMovimientos() {
   el.innerHTML = `
     <div class="head"><h1>Movimientos</h1><button class="iconbtn" id="btnBuscar" aria-label="Buscar">${ic('search')}</button></div>
     <div class="search ${S.buscando || q ? 'on' : ''}"><input class="input" id="inBuscar" placeholder="Buscar comercio o categoría" value="${esc(S.busca)}"></div>
-    <div class="chips">${[['todos', 'Todos'], ['gastos', 'Gastos'], ['ingresos', 'Ingresos'], ['fijos', 'Fijos']].map(([k, t]) => `<button class="chip ${f === k ? 'on' : ''}" data-filtro="${k}">${t}</button>`).join('')}</div>
+    <div class="chips">${[['todos', 'Todos'], ['gastos', 'Gastos'], ['ingresos', 'Ingresos'], ['fijos', 'Fijos'], ['credito', 'Crédito']].map(([k, t]) => `<button class="chip ${f === k ? 'on' : ''}" data-filtro="${k}">${t}</button>`).join('')}</div>
     ${meses.length ? meses.map((m) => {
       const lista = rs.filter((r) => r.mes === m);
       const gas = sum(lista, (r) => r.gasto);
       const ingM = sum(lista.filter((r) => r.tipo === 'Ingreso'), (r) => r.monto * (r.moneda === 'USD' ? S.dolar : 1));
       const abierto = q || S.abiertos[m];
       return `<div><div class="mesgrp ${abierto ? '' : 'cerrado'}" data-mes="${m}"><span>${cap(mesNombre(m))}</span><span class="num" style="display:flex;gap:6px;align-items:center">${f === 'ingresos' ? '<span class="green">+' + money(ingM) + '</span>' : '-' + money(gas)}${ic('chev')}</span></div>
+        ${abierto && f === 'credito' ? `<p class="xs muted" style="margin:-4px 4px 8px">${['Itaú', 'Santander'].map((b) => [b, sum(lista.filter((r) => r.banco.startsWith(b)), (r) => r.gasto)]).filter((x) => x[1]).map(([b, v]) => b + ' ' + money(v)).join(' · ')}</p>` : ''}
         ${abierto ? `<div class="card tight">${lista.map(itemMov).join('')}</div>` : ''}</div>`;
     }).join('') : '<p class="vacio">No hay movimientos con ese filtro.</p>'}
     ${estadoHTML()}`;
